@@ -1,8 +1,41 @@
 from ..scheduler import get_crons
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from ..services import user_service
+import aiosqlite
+import redis.asyncio as redis
+import os
 
 router = APIRouter()
+
+@router.get("/health")
+async def health_check():
+    """Health check endpoint that verifies core system components."""
+    try:
+        # Get crons instance
+        crons = get_crons()
+        
+        # Check database connectivity
+        db_path = os.getenv("DATABASE_PATH", "cron_state.db")
+        async with aiosqlite.connect(db_path) as db:
+            async with db.execute("SELECT 1") as cursor:
+                await cursor.fetchone()
+        
+        # Check Redis if configured
+        if hasattr(crons, "leader_lock") and crons.leader_lock:
+            redis_client = crons.leader_lock._redis
+            await redis_client.ping()
+            
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "redis": "connected" if hasattr(crons, "leader_lock") and crons.leader_lock else "not_configured"
+        }
+    except aiosqlite.Error as e:
+        raise HTTPException(status_code=503, detail=f"Database health check failed: {str(e)}")
+    except redis.RedisError as e:
+        raise HTTPException(status_code=503, detail=f"Redis health check failed: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Health check failed: {str(e)}")
 
 @router.get("/system/status")
 async def get_system_status():
