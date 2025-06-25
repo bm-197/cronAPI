@@ -80,7 +80,7 @@ The Docker setup includes:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/cronapi.git
+git clone https://github.com/bm-197/cronapi.git
 cd cronapi
 
 # Install dependencies
